@@ -1,0 +1,96 @@
+/*
+Production-style WAF Policy as Code learning pipeline.
+
+This file intentionally starts in validate/plan-only mode. It does not write to
+Jira, GitHub, AWS, or Akamai until the provider adapters and credentials are
+added in later steps.
+*/
+
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+        timestamps()
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    parameters {
+        string(
+            name: 'JIRA_ISSUE',
+            defaultValue: 'SEC-0000',
+            description: '关联的Jira工单，例如SEC-1024'
+        )
+        choice(
+            name: 'PIPELINE_MODE',
+            choices: ['validate', 'plan'],
+            description: 'PR使用validate；审核部署内容时使用plan'
+        )
+        choice(
+            name: 'WAF_PLATFORM',
+            choices: ['both', 'aws', 'akamai'],
+            description: '需要验证或生成计划的WAF平台'
+        )
+        choice(
+            name: 'TARGET_ENVIRONMENT',
+            choices: ['staging', 'production'],
+            description: 'plan所针对的环境；当前不会执行真实部署'
+        )
+    }
+
+    stages {
+        stage('Checkout Policy Repository') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Validate Change Context') {
+            steps {
+                sh '''
+                    set -eu
+                    printf '%s' "$JIRA_ISSUE" | grep -Eq '^[A-Z][A-Z0-9]+-[0-9]+$'
+
+                    if [ -n "${CHANGE_ID:-}" ] && [ -n "${BRANCH_NAME:-}" ]; then
+                        printf '%s' "$BRANCH_NAME" | grep -F "$JIRA_ISSUE" >/dev/null
+                    fi
+                '''
+            }
+        }
+
+        stage('Validate WAF Policies') {
+            steps {
+                sh 'python3 scripts/validate_waf_policies.py'
+            }
+        }
+
+        stage('Create Deployment Plan') {
+            when {
+                expression { params.PIPELINE_MODE == 'plan' }
+            }
+            steps {
+                sh '''
+                    python3 scripts/plan_waf_deployment.py \
+                        --platform "$WAF_PLATFORM" \
+                        --environment "$TARGET_ENVIRONMENT" \
+                        --output build/waf-deployment-plan.json
+                '''
+                archiveArtifacts(
+                    artifacts: 'build/waf-deployment-plan.json',
+                    fingerprint: true
+                )
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "WAF pipeline result: ${currentBuild.currentResult}"
+        }
+    }
+}

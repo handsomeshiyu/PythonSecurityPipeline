@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "rule_id": "SEC-0000-admin-probe",
+  "jira_issue": "SEC-0000",
+  "description": "教学示例：监控针对非业务后台路径的探测请求",
+  "enabled": false,
+  "targets": [
+    "aws",
+    "akamai"
+  ],
+  "priority": 9000,
+  "match": {
+    "path_prefix": "/wp-admin"
+  },
+  "rollout": {
+    "staging_action": "monitor",
+    "production_action": "block"
+  },
+  "tests": [
+    {
+      "name": "scanner request should match",
+      "request": {
+        "method": "GET",
+        "path": "/wp-admin/setup-config.php"
+      },
+      "expected_match": true
+    },
+    {
+      "name": "normal application request should not match",
+      "request": {
+        "method": "GET",
+        "path": "/login"
+      },
+      "expected_match": false
+    }
+  ]
+}
