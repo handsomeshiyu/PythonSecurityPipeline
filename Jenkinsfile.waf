@@ -56,8 +56,9 @@ pipeline {
                     set -eu
                     printf '%s' "$JIRA_ISSUE" | grep -Eq '^[A-Z][A-Z0-9]+-[0-9]+$'
 
-                    if [ -n "${CHANGE_ID:-}" ] && [ -n "${BRANCH_NAME:-}" ]; then
-                        printf '%s' "$BRANCH_NAME" | grep -F "$JIRA_ISSUE" >/dev/null
+                    if [ -n "${CHANGE_ID:-}" ]; then
+                        change_context="${CHANGE_BRANCH:-} ${CHANGE_TITLE:-} ${BRANCH_NAME:-}"
+                        printf '%s' "$change_context" | grep -F "$JIRA_ISSUE" >/dev/null
                     fi
                 '''
             }
