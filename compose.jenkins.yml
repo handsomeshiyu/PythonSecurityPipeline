@@ -1,0 +1,22 @@
+services:
+  jenkins:
+    build:
+      context: ./jenkins-modern
+    container_name: waf-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=true"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+volumes:
+  jenkins_data:
